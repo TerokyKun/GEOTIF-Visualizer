@@ -1,8 +1,0 @@
-fastapi
-uvicorn[standard]
-python-multipart
-numpy
-scipy
-rasterio
-matplotlib
-pillow

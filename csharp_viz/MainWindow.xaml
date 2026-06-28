@@ -1,0 +1,247 @@
+<Window x:Class="KensVisualizer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:KensVisualizer"
+        xmlns:vm="clr-namespace:KensVisualizer.ViewModels"
+        Title="KENS Terrain Matching Navigation"
+        Width="1600" Height="1000"
+        Background="#0a0a1a"
+        WindowStartupLocation="CenterScreen"
+        Loaded="Window_Loaded">  
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
+    <Window.Resources>
+        <local:BoolToBrushConverter x:Key="BoolToColor"
+                                     FalseBrush="#ff4444" TrueBrush="#00ff88"/>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="#12122a"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="Margin" Value="3"/>
+        </Style>
+        <Style x:Key="Lbl" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#667788"/>
+            <Setter Property="FontSize" Value="10.5"/>
+            <Setter Property="Margin" Value="0,1"/>
+        </Style>
+        <Style x:Key="Val" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#dde0e4"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="Margin" Value="0,1"/>
+        </Style>
+        <Style x:Key="Hdr" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#00ccee"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="340"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ===== LEFT: MAP CANVAS ===== -->
+        <Border Grid.Column="0" Style="{StaticResource Card}" Margin="6">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Style="{StaticResource Hdr}"
+                           Text="TERRAIN MAP &amp; TRAJECTORIES"/>
+
+                <!-- Background layer: terrain image -->
+                <Canvas x:Name="MapCanvas" Grid.Row="1"
+                        Background="#06060f" ClipToBounds="True">                    
+                    <Canvas x:Name="TrackCanvas"/>
+                    <Image x:Name="Preview" Stretch="Fill"  
+                       SizeChanged="Preview_SizeChanged"/>
+                    <Canvas x:Name="DrawingCanvas" Background="Transparent" SizeChanged="CanvasDraw_SizeChanged">
+                        <Ellipse x:Name="DroneMarker" Width="18" Height="18"
+                                Fill="#00eeff" Stroke="White" StrokeThickness="2.5"
+                                Visibility="Collapsed"/>
+                        <Ellipse x:Name="KensMarker" Width="14" Height="14"
+                                Fill="#ff6600" Stroke="White" StrokeThickness="2"
+                                Visibility="Collapsed"/>
+                        <Ellipse x:Name="CenterMarker" Width="14" Height="14"
+                                Fill="#ffcc00" Stroke="White" StrokeThickness="2"
+                                Visibility="Collapsed"/>
+                    </Canvas>
+                </Canvas>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <Button Width="160" Margin="0,0,10,0" Click="LoadImageTiff_Click">Загрузить Tiff</Button>
+                    <Button Width="160" Margin="0,0,10,0" Click="LoadImageBmp_Click">Загрузить Bmp</Button>
+                    <Button Width="160" Click="ParseNmea_Click">Разобрать GPGGA</Button>        
+                </StackPanel>
+                <!-- Status bar -->
+                <Border Grid.Row="1" Margin="6" Padding="8,4"
+                        HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Background="#aa000000" CornerRadius="4">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="10" Height="10" Margin="0,0,8,0"
+                                 Fill="{Binding IsConnected, Converter={StaticResource BoolToColor}}"/>
+                        <TextBlock FontSize="11" Foreground="#aabbcc"
+                                   Text="{Binding StatusText}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Legend -->
+                <Border Grid.Row="1" Margin="6" Padding="8,6"
+                        HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                        Background="#aa000000" CornerRadius="4">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,1">
+                            <Rectangle Width="14" Height="3" Fill="Red" Margin="0,0,6,0"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="INS (raw)" Foreground="#ccc" FontSize="10"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,1">
+                            <Rectangle Width="14" Height="3" Fill="#00cccc" Margin="0,0,6,0"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="KENS (corrected)" Foreground="#ccc" FontSize="10"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,1">
+                            <Rectangle Width="14" Height="3" Fill="#44dd44" Margin="0,0,6,0"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="EKF (filtered)" Foreground="#ccc" FontSize="10"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,1">
+                            <Ellipse Width="8" Height="8" Fill="#00eeff" Margin="3,0,6,0"
+                                     VerticalAlignment="Center"/>
+                            <TextBlock Text="Drone (INS)" Foreground="#ccc" FontSize="10"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,1">
+                            <Ellipse Width="8" Height="8" Fill="#ff6600" Margin="3,0,6,0"
+                                     VerticalAlignment="Center"/>
+                            <TextBlock Text="KENS match" Foreground="#ccc" FontSize="10"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,1">
+                            <Rectangle Width="14" Height="8" Stroke="#ffff00"
+                                       StrokeThickness="1" StrokeDashArray="3,1"
+                                       Margin="0,0,6,0" VerticalAlignment="Center"
+                                       Fill="Transparent"/>
+                            <TextBlock Text="Search window" Foreground="#ccc" FontSize="10"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,1">
+                            <Rectangle Width="14" Height="8" Stroke="#ffcc00"
+                                       StrokeThickness="1.5" Margin="0,0,6,0"
+                                       VerticalAlignment="Center"
+                                       Fill="#33ffcc00"/>
+                            <TextBlock Text="Ref block" Foreground="#ccc" FontSize="10"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ===== RIGHT: TELEMETRY ===== -->
+        <Grid Grid.Column="1" Margin="0,6,6,6">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBox Name="resultBox" IsReadOnly="True"
+                        TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                        AcceptsReturn="True"/>
+                    <TextBox Grid.Row="2" Name="nmeaBox" Margin="0,10,0,0"/>
+
+                    <!-- INS
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hdr}" Text="INS (Raw)"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="X (North), m:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding InsX, StringFormat=F2}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Y (East), m:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding InsY, StringFormat=F2}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Vx, m/s:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding InsVx, StringFormat=F2}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Vy, m/s:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding InsVy, StringFormat=F2}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Heading, rad:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding InsHeading, StringFormat=F3}"/>
+                        </StackPanel>
+                    </Border>                    
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hdr}" Text="KENS Correction"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Valid:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding KensValid}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Fallback:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding KensFallback}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="In Bounds:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding KensInBounds}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="X corrected, m:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding KensX, StringFormat=F2}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Y corrected, m:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding KensY, StringFormat=F2}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Delta X, m:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding KensDeltaX, StringFormat=F2}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Delta Y, m:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding KensDeltaY, StringFormat=F2}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Sigma ratio:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding SigmaTerrainRatio, StringFormat=F4}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Lp:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding LpAccum, StringFormat=F4}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="dH error:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding KensDhError, StringFormat=F4}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="KENS Lp:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding KensLp, StringFormat=F4}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Search Window:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding KensSearchWindowHalf, StringFormat=F0}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Ref Block:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding KensRefBlockSize, StringFormat=F0}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hdr}" Text="Extended Kalman Filter"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Valid:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding EkfValid}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="X, m:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding EkfX, StringFormat=F2}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Y, m:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding EkfY, StringFormat=F2}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Sigma X:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding EkfSigmaX, StringFormat=F3}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Sigma Y:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding EkfSigmaY, StringFormat=F3}"/>
+                        </StackPanel>
+                    </Border>
+
+                    
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hdr}" Text="DEM (GeoTIFF via GDAL)"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Origin X (East):"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding DemOriginX, StringFormat=F1}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Origin Y (North):"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding DemOriginY, StringFormat=F1}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Pixel W (East), m:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding DemPixelW, StringFormat=F3}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Pixel H (North), m:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding DemPixelH, StringFormat=F3}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Raster X:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding DemRasterX}"/>
+                            <TextBlock Style="{StaticResource Lbl}" Text="Raster Y:"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding DemRasterY}"/>
+                        </StackPanel>
+                    </Border>
+                    
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hdr}" Text="DEBUG STATUS"/>
+                            <TextBlock Style="{StaticResource Val}" Text="{Binding DebugInfo}"
+                                       TextWrapping="Wrap" FontSize="10"/>
+                        </StackPanel>
+                    </Border> -->
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</Window>
